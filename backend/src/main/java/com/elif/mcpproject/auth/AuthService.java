@@ -1,0 +1,77 @@
+package com.elif.mcpproject.auth;
+
+import com.elif.mcpproject.auth.dto.AuthResponse;
+import com.elif.mcpproject.auth.dto.LoginRequest;
+import com.elif.mcpproject.auth.dto.RegisterRequest;
+import com.elif.mcpproject.security.JwtService;
+import com.elif.mcpproject.token.RefreshToken;
+import com.elif.mcpproject.token.RefreshTokenRepository;
+import com.elif.mcpproject.user.AppUser;
+import com.elif.mcpproject.user.UserRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+import java.time.Instant;
+import java.util.UUID;
+
+import static org.springframework.http.HttpStatus.CONFLICT;
+import static org.springframework.http.HttpStatus.UNAUTHORIZED;
+
+@Service
+@RequiredArgsConstructor
+public class AuthService {
+    private final UserRepository userRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
+
+    @Value("${app.jwt.refresh-token-days}")
+    private long refreshDays;
+
+    public AuthResponse register(RegisterRequest req){
+        if (userRepository.existsByEmail(req.email())){
+            throw new ResponseStatusException(CONFLICT,"Email already exists");
+        }
+
+        Instant now = Instant.now();
+        AppUser user = AppUser.builder()
+                .email(req.email())
+                .passwordHash(passwordEncoder.encode(req.password()))
+                .role(AppUser.Role.USER)
+                .createdAt(now)
+                .build();
+        userRepository.save(user);
+        return issueTokens(user,now);
+    }
+
+    public AuthResponse login(LoginRequest req){
+        AppUser user = userRepository.findByEmail(req.email())
+                .orElseThrow(()-> new ResponseStatusException(UNAUTHORIZED, "Invalid credentials"));
+
+        if (!passwordEncoder.matches(req.password(), user.getPasswordHash())){
+            throw new ResponseStatusException(UNAUTHORIZED,"Invalid credentials");
+        }
+
+        return issueTokens(user, Instant.now());
+    }
+
+    public AuthResponse issueTokens(AppUser user, Instant now){
+        String access = jwtService.generateAccessToken(user.getEmail());
+        String refresh = UUID.randomUUID().toString();
+
+        refreshTokenRepository.save(
+                RefreshToken.builder()
+                        .user(user)
+                        .token(refresh)
+                        .expiresAt(now.plusSeconds(refreshDays*24*60*60))
+                        .revokedAt(null)
+                        .createdAt(now)
+                        .build()
+        );
+
+        return new AuthResponse(access,refresh);
+    }
+
+}
