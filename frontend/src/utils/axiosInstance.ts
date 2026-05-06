@@ -1,12 +1,18 @@
-import axios from "axios";
-import { setTokens, clearTokens } from "../store/authStore";
+import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
+import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "@/store/authStore";
+
+const API_BASE_URL = "http://localhost:8080";
+
+type RetryableRequestConfig = InternalAxiosRequestConfig & {
+  _retry?: boolean;
+};
 
 const api = axios.create({
-  baseURL: "http://localhost:8080",
+  baseURL: API_BASE_URL,
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("accessToken");
+  const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -34,52 +40,32 @@ const processQueue = (error: any, token: string | null = null) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    const originalRequest = error?.config;
+  async (error: AxiosError) => {
+    const originalRequest = error.config as RetryableRequestConfig | undefined;
+    const isAuthEndpoint = originalRequest?.url?.startsWith("/api/auth/");
 
-    if (error?.response?.status === 401 && originalRequest && !originalRequest._retry) {
-      originalRequest._retry = true;
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isAuthEndpoint) {
+      const refreshToken = getRefreshToken();
 
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject, config: originalRequest });
-        });
-      }
+      if (refreshToken) {
+        try {
+          originalRequest._retry = true;
 
-      isRefreshing = true;
+          const { data } = await axios.post<{ accessToken: string; refreshToken: string }>(
+            `${API_BASE_URL}/api/auth/refresh`,
+            { refreshToken }
+          );
 
-      const refreshToken = localStorage.getItem("refreshToken");
-
-      if (!refreshToken) {
+          setTokens(data.accessToken, data.refreshToken);
+          originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
+          return api(originalRequest);
+        } catch {
+          clearTokens();
+        }
+      } else {
         clearTokens();
-        if (!window.location.pathname.includes("/login")) window.location.href = "/login";
-        return Promise.reject(error);
       }
 
-      return new Promise((resolve, reject) => {
-        axios
-          .post(`${api.defaults.baseURL}/api/auth/refresh`, { refreshToken })
-          .then(({ data }) => {
-            setTokens(data.accessToken, data.refreshToken);
-            api.defaults.headers.common["Authorization"] = `Bearer ${data.accessToken}`;
-            processQueue(null, data.accessToken);
-            resolve(api(originalRequest));
-          })
-          .catch((err) => {
-            processQueue(err, null);
-            clearTokens();
-            if (!window.location.pathname.includes("/login")) window.location.href = "/login";
-            reject(err);
-          })
-          .finally(() => {
-            isRefreshing = false;
-          });
-      });
-    }
-
-    if (error?.response?.status === 401) {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
       if (!window.location.pathname.includes("/login")) {
         window.location.href = "/login";
       }

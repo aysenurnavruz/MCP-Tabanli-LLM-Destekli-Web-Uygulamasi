@@ -1,0 +1,11 @@
+.env
+backend/.env
+ai-service/.env
+frontend/.env
+
+backend/target/
+ai-service/target/
+frontend/dist/
+frontend/node_modules/
+
+.DS_Store

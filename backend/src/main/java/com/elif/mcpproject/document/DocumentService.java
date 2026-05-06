@@ -1,5 +1,6 @@
 package com.elif.mcpproject.document;
 
+import com.elif.mcpproject.ai.AiMcpClient;
 import com.elif.mcpproject.document.dto.DocumentResponse;
 import com.elif.mcpproject.security.CurrentUserService;
 import com.elif.mcpproject.user.AppUser;
@@ -23,12 +24,20 @@ import java.time.Instant;
 import java.util.UUID;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
+import java.util.ArrayList;
+import com.elif.mcpproject.document.text.DocumentChunk;
+import com.elif.mcpproject.document.text.DocumentChunkRepository;
 
 @Service
 @RequiredArgsConstructor
 public class DocumentService {
     private final DocumentRepository documentRepository;
     private final CurrentUserService currentUserService;
+    private final AiMcpClient aiMcpClient;
+    private final ObjectMapper objectMapper;
+    private final DocumentChunkRepository chunkRepository;
 
     @Value("${app.storage.path:storage}")
     private String storageRoot;
@@ -89,6 +98,25 @@ public class DocumentService {
                 .build();
 
         Document saved = documentRepository.save(doc);
+
+        if (extractedText != null) {
+
+            List<DocumentChunk> chunks = splitWithOffsets(extractedText, saved);
+
+            for (DocumentChunk chunk : chunks) {
+
+                List<Double> embeddingVector = aiMcpClient.createEmbedding(chunk.getContent());
+
+                String embeddingJson;
+                try {
+                    embeddingJson = objectMapper.writeValueAsString(embeddingVector);
+                } catch (Exception e) {
+                    throw new RuntimeException("Embedding JSON convert error", e);
+                }
+                chunk.setEmbedding(embeddingJson);
+                chunkRepository.save(chunk);
+            }
+        }
         return toResponse(saved);
     }
 
@@ -116,5 +144,30 @@ public class DocumentService {
                 d.getSizeBytes(),
                 d.getCreatedAt()
         );
+    }
+
+    private List<DocumentChunk> splitWithOffsets(String text, Document document) {
+
+        int chunkSize = 500;
+        List<DocumentChunk> chunks = new ArrayList<>();
+
+        for (int i = 0; i < text.length(); i += chunkSize) {
+
+            int end = Math.min(text.length(), i + chunkSize);
+
+            String chunkText = text.substring(i, end);
+
+            DocumentChunk chunk = DocumentChunk.builder()
+                .document(document)
+                .content(chunkText)
+                .chunkIndex(chunks.size())
+                .startOffset(i)
+                .endOffset(end)
+                .build();
+
+            chunks.add(chunk);
+        }
+
+        return chunks;
     }
 }

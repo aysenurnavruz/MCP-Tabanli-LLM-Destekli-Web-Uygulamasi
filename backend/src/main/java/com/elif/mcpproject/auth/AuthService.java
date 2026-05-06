@@ -42,8 +42,9 @@ public class AuthService {
                 .role(AppUser.Role.USER)
                 .createdAt(now)
                 .build();
+
         userRepository.save(user);
-        return issueTokens(user,now);
+        return issueTokens(user, now);
     }
 
     public AuthResponse login(LoginRequest req){
@@ -53,6 +54,7 @@ public class AuthService {
         if (!passwordEncoder.matches(req.password(), user.getPasswordHash())){
             throw new ResponseStatusException(UNAUTHORIZED,"Invalid credentials");
         }
+        revokeAllUserTokens(user);
 
         return issueTokens(user, Instant.now());
     }
@@ -72,6 +74,40 @@ public class AuthService {
         );
 
         return new AuthResponse(access,refresh);
+    }
+
+    public void logout(String refreshToken) {
+        RefreshToken token = refreshTokenRepository.findByToken(refreshToken)
+            .orElseThrow(() -> new ResponseStatusException(UNAUTHORIZED, "Token not found"));
+
+        token.setRevokedAt(Instant.now());
+        refreshTokenRepository.save(token);
+    }
+
+    public AuthResponse refresh(String refreshToken) {
+
+        RefreshToken token = refreshTokenRepository.findByToken(refreshToken)
+            .orElseThrow(() -> new ResponseStatusException(UNAUTHORIZED, "Invalid refresh token"));
+
+        if (token.getRevokedAt() != null) {
+            throw new ResponseStatusException(UNAUTHORIZED, "Token revoked");
+        }
+
+        if (token.getExpiresAt().isBefore(Instant.now())) {
+            throw new ResponseStatusException(UNAUTHORIZED, "Token expired");
+        }
+        token.setRevokedAt(Instant.now());
+        refreshTokenRepository.save(token);
+
+        AppUser user = token.getUser();
+        return issueTokens(user, Instant.now());
+    }
+
+    private void revokeAllUserTokens(AppUser user) {
+        var tokens = refreshTokenRepository.findByUser(user);
+        Instant now = Instant.now();
+        tokens.forEach(t -> t.setRevokedAt(now));
+        refreshTokenRepository.saveAll(tokens);
     }
 
 }

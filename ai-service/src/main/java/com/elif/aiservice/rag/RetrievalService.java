@@ -1,9 +1,9 @@
-package com.elif.mcpproject.rag;
+package com.elif.aiservice.rag;
 
+import com.elif.aiservice.document.DocumentChunk;
+import com.elif.aiservice.document.DocumentChunkRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.elif.mcpproject.document.text.DocumentChunk;
-import com.elif.mcpproject.document.text.DocumentChunkRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -14,26 +14,28 @@ import java.util.List;
 public class RetrievalService {
     private final DocumentChunkRepository documentChunkRepository;
     private final EmbeddingService embeddingService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
-    public List<DocumentChunk> retrieveTopK(Long documentId, String query, int k){
-
-        List<DocumentChunk> chunks = documentChunkRepository
-            .findAllByDocumentIdOrderByChunkIndexAsc(documentId);
-
-        if (chunks == null || chunks.isEmpty()) return List.of();
+    public List<ScoredChunk> retrieveTopK(Long documentId, String query, int k) {
+        List<DocumentChunk> chunks = documentChunkRepository.findAllByDocumentIdOrderByChunkIndexAsc(documentId);
+        if (chunks == null || chunks.isEmpty()) {
+            return List.of();
+        }
 
         List<Double> queryEmbedding = embeddingService.createEmbedding(query);
 
         return chunks.stream()
-            .map(chunk -> new ScoredChunk(
-                    chunk,
-                    similarity(chunk.getEmbedding(), queryEmbedding)
-            ))
-            .sorted((a, b) -> Double.compare(b.score(), a.score()))
-            .limit(k)
-            .map(ScoredChunk::chunk)
-            .toList();
+                .map(chunk -> new ScoredChunk(
+                        chunk.getId(),
+                        chunk.getChunkIndex(),
+                        chunk.getContent(),
+                        chunk.getStartOffset(),
+                        chunk.getEndOffset(),
+                        similarity(chunk.getEmbedding(), queryEmbedding)
+                ))
+                .sorted((a, b) -> Double.compare(b.score(), a.score()))
+                .limit(k)
+                .toList();
     }
 
     private double similarity(String embeddingJson, List<Double> queryEmbedding) {
@@ -42,15 +44,10 @@ public class RetrievalService {
         }
 
         try {
-            List<Double> chunkEmbedding = objectMapper.readValue(
-                embeddingJson,
-                new TypeReference<>() {}
-            );
-
+            List<Double> chunkEmbedding = objectMapper.readValue(embeddingJson, new TypeReference<>() {});
             return cosineSimilarity(chunkEmbedding, queryEmbedding);
-
         } catch (Exception e) {
-            throw new RuntimeException("Embedding parse error", e);
+            return 0.0;
         }
     }
 
@@ -77,5 +74,12 @@ public class RetrievalService {
         return dot / (Math.sqrt(norm1) * Math.sqrt(norm2));
     }
 
-    private record ScoredChunk(DocumentChunk chunk, double score){}
+    public record ScoredChunk(
+            Long id,
+            Integer chunkIndex,
+            String content,
+            Integer startOffset,
+            Integer endOffset,
+            double score
+    ) {}
 }

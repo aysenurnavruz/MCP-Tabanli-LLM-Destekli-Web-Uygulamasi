@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/sidebar";
 
 import type { Chat } from "@/api/chats";
-import { clearTokens } from "@/store/authStore";
+import { logoutApi } from "@/api/auth";
 
 const CHATS_SECTION_OPEN_KEY = "sidebarChatsSectionOpen";
 
@@ -105,8 +105,8 @@ export function ChatSidebar({
     localStorage.setItem(CHATS_SECTION_OPEN_KEY, String(isChatsOpen));
   }, [isChatsOpen]);
 
-  const onLogout = () => {
-    clearTokens();
+  const onLogout = async () => {
+    await logoutApi();
     navigate("/login");
   };
 
