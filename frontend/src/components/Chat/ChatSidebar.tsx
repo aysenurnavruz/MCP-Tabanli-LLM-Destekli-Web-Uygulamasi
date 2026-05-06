@@ -199,10 +199,10 @@ export function ChatSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator />
+        
 
         <SidebarGroup>
-          {open ? <SidebarGroupLabel className="text-zinc-400">Dokumanlar</SidebarGroupLabel> : null}
+         
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>

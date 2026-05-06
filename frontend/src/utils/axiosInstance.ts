@@ -19,6 +19,25 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+let isRefreshing = false as boolean;
+let failedQueue: Array<{
+  resolve: (value?: any) => void;
+  reject: (error: any) => void;
+  config: any;
+}> = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach(({ resolve, reject, config }) => {
+    if (error) {
+      reject(error);
+    } else {
+      if (token) config.headers.Authorization = `Bearer ${token}`;
+      resolve(api(config));
+    }
+  });
+  failedQueue = [];
+};
+
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
