@@ -15,6 +15,10 @@ export function getAccessToken() {
   return localStorage.getItem(ACCESS_KEY);
 }
 
+export function getRefreshToken() {
+  return localStorage.getItem(REFRESH_KEY);
+}
+
 export function isAuthenticated() {
   return Boolean(getAccessToken());
 }

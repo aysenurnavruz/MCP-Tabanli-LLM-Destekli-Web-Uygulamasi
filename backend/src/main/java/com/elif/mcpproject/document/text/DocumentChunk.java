@@ -1,9 +1,8 @@
 package com.elif.mcpproject.document.text;
 
-
+import com.elif.mcpproject.document.Document;
 import jakarta.persistence.*;
 import lombok.*;
-
 import java.time.LocalDateTime;
 
 @Entity
@@ -16,8 +15,9 @@ public class DocumentChunk {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "document_id",nullable = false)
-    private Long documentId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "document_id", nullable = false)
+    private Document document;
 
     @Column(name = "chunk_index",nullable = false)
     private Integer chunkIndex;
@@ -34,5 +34,8 @@ public class DocumentChunk {
 
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(columnDefinition = "TEXT")
+    private String embedding;
 
 }

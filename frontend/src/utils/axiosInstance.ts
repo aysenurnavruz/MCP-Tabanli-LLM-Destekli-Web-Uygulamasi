@@ -1,11 +1,18 @@
-import axios from "axios";
+import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
+import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "@/store/authStore";
+
+const API_BASE_URL = "http://localhost:8080";
+
+type RetryableRequestConfig = InternalAxiosRequestConfig & {
+  _retry?: boolean;
+};
 
 const api = axios.create({
-  baseURL: "http://localhost:8080",
+  baseURL: API_BASE_URL,
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("accessToken");
+  const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -14,14 +21,37 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error?.response?.status === 401) {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
+  async (error: AxiosError) => {
+    const originalRequest = error.config as RetryableRequestConfig | undefined;
+    const isAuthEndpoint = originalRequest?.url?.startsWith("/api/auth/");
+
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isAuthEndpoint) {
+      const refreshToken = getRefreshToken();
+
+      if (refreshToken) {
+        try {
+          originalRequest._retry = true;
+
+          const { data } = await axios.post<{ accessToken: string; refreshToken: string }>(
+            `${API_BASE_URL}/api/auth/refresh`,
+            { refreshToken }
+          );
+
+          setTokens(data.accessToken, data.refreshToken);
+          originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
+          return api(originalRequest);
+        } catch {
+          clearTokens();
+        }
+      } else {
+        clearTokens();
+      }
+
       if (!window.location.pathname.includes("/login")) {
         window.location.href = "/login";
       }
     }
+
     return Promise.reject(error);
   }
 );

@@ -1,13 +1,12 @@
 package com.elif.mcpproject.chat;
 
+import com.elif.mcpproject.ai.AiMcpClient;
 import com.elif.mcpproject.chat.dto.ChatResponse;
 import com.elif.mcpproject.chat.dto.MessageResponse;
 import com.elif.mcpproject.chat.dto.MessageRequest;
 import com.elif.mcpproject.chat.dto.SendMessageResponse;
 import com.elif.mcpproject.document.Document;
 import com.elif.mcpproject.document.DocumentRepository;
-import com.elif.mcpproject.rag.MockAssistantProvider;
-import com.elif.mcpproject.rag.RetrievalService;
 import com.elif.mcpproject.security.CurrentUserService;
 import com.elif.mcpproject.user.AppUser;
 import lombok.*;
@@ -29,19 +28,18 @@ public class ChatService {
     private final DocumentRepository documentRepository;
     private final CurrentUserService currentUserService;
 
-    private final RetrievalService retrievalService;
-    private final MockAssistantProvider mockAssisantProvider;
+    private final AiMcpClient aiMcpClient;
 
     @Transactional
     public ChatResponse createChat(Long documentId,String title, Principal principal) {
         AppUser user = currentUserService.requireCurrentUser(principal);
 
-        Document doc = null;
-        if (documentId != null ) {
-            doc = documentRepository.findByIdAndUserId(documentId, user.getId())
-                    .orElseThrow(() ->  new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
-
+        if (documentId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "documentId is required");
         }
+
+        Document doc = documentRepository.findByIdAndUserId(documentId, user.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
 
         String safeTitle = (title == null || title.isBlank()) ? null : title.trim();
 
@@ -70,7 +68,7 @@ public class ChatService {
                 .findAllByUserIdOrderByUpdatedAtDesc(user.getId(), pageable)
                 .map(c -> new ChatResponse(
                         c.getId(),
-                        c.getDocument().getId(),
+                        c.getDocument() == null ? null : c.getDocument().getId(),
                         c.getTitle(),
                         c.getCreatedAt(),
                         c.getUpdatedAt()
@@ -104,6 +102,10 @@ public class ChatService {
 
         Chat chat = chatRepository.findByIdAndUserId(chatId, user.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Chat not found"));
+
+        if (chat.getDocument() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Chat must be linked to a document for RAG answer");
+        }
 
         String content = req.content().trim();
         String clientMessageId = (req.clientMessageId() == null || req.clientMessageId().isBlank())
@@ -173,14 +175,7 @@ public class ChatService {
             throw e;
         }
 
-        String assistantText;
-        if (chat.getDocument() != null){
-            var topChunks = retrievalService.retrieveTopK(chat.getDocument().getId(),content,3);
-            assistantText = mockAssisantProvider.answer(content, topChunks);
-        }else{
-            assistantText = "(Demo/Mock) Bu chat bir dökümana bağlı değil.\n\nSoru: " + content;
-        }
-
+        String assistantText = aiMcpClient.answer(chat.getDocument().getId(), content, 3);
 
         Message assistantMsg = Message.builder()
                 .chat(chat)
