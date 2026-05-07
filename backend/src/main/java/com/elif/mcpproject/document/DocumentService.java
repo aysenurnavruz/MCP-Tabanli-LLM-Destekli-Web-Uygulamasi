@@ -1,7 +1,11 @@
 package com.elif.mcpproject.document;
 
 import com.elif.mcpproject.ai.AiMcpClient;
+import com.elif.mcpproject.chat.Chat;
+import com.elif.mcpproject.chat.ChatRepository;
+import com.elif.mcpproject.chat.MessageRepository;
 import com.elif.mcpproject.document.dto.DocumentResponse;
+import com.elif.mcpproject.document.text.DocumentTextRepository;
 import com.elif.mcpproject.security.CurrentUserService;
 import com.elif.mcpproject.user.AppUser;
 import java.nio.file.Path;
@@ -38,6 +42,9 @@ public class DocumentService {
     private final AiMcpClient aiMcpClient;
     private final ObjectMapper objectMapper;
     private final DocumentChunkRepository chunkRepository;
+    private final DocumentTextRepository documentTextRepository;
+    private final ChatRepository chatRepository;
+    private final MessageRepository messageRepository;
 
     @Value("${app.storage.path:storage}")
     private String storageRoot;
@@ -136,6 +143,25 @@ public class DocumentService {
         return toResponse(doc);
     }
 
+    @Transactional
+    public void deleteMine(Long id, Principal principal) {
+        AppUser user = currentUserService.requireCurrentUser(principal);
+        Document doc = documentRepository.findByIdAndUserId(id, user.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
+
+        List<Chat> chats = chatRepository.findAllByDocumentIdAndUserId(doc.getId(), user.getId());
+        for (Chat chat : chats) {
+            messageRepository.deleteAllByChatId(chat.getId());
+        }
+
+        chatRepository.deleteAll(chats);
+        chunkRepository.deleteAllByDocumentId(doc.getId());
+        documentTextRepository.deleteByDocumentId(doc.getId());
+        documentRepository.delete(doc);
+
+        deleteStoredFile(doc);
+    }
+
     private DocumentResponse toResponse(Document d){
         return new DocumentResponse(
                 d.getId(),
@@ -169,5 +195,18 @@ public class DocumentService {
         }
 
         return chunks;
+    }
+
+    private void deleteStoredFile(Document document) {
+        if (document.getStoragePath() == null || document.getStoragePath().isBlank()) {
+            return;
+        }
+
+        Path path = Paths.get(storageRoot).resolve(document.getStoragePath()).normalize();
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "File delete failed: " + e.getMessage());
+        }
     }
 }

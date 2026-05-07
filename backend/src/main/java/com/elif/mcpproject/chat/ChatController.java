@@ -5,6 +5,7 @@ import com.elif.mcpproject.chat.dto.ChatResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import java.security.Principal;
 
@@ -26,4 +27,9 @@ public class ChatController {
         return chatService.listMyChatsPaged(pageable, principal);
     }
 
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id, Principal principal) {
+        chatService.deleteChat(id, principal);
+    }
 }

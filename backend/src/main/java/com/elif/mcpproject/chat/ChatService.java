@@ -75,6 +75,16 @@ public class ChatService {
                 ));
     }
 
+    @Transactional
+    public void deleteChat(Long chatId, Principal principal) {
+        AppUser user = currentUserService.requireCurrentUser(principal);
+        Chat chat = chatRepository.findByIdAndUserId(chatId, user.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Chat not found"));
+
+        messageRepository.deleteAllByChatId(chat.getId());
+        chatRepository.delete(chat);
+    }
+
     @Transactional(readOnly = true)
     public Page<MessageResponse> listMessagesPaged(Long chatId, Pageable pageable, Principal principal) {
         AppUser user = currentUserService.requireCurrentUser(principal);
