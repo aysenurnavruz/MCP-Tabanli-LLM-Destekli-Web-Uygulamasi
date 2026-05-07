@@ -6,4 +6,5 @@ import java.util.Optional;
 
 public interface DocumentTextRepository extends JpaRepository<DocumentText, Long> {
     Optional<DocumentText> findByDocumentId(Long documentId);
+    void deleteByDocumentId(Long documentId);
 }
