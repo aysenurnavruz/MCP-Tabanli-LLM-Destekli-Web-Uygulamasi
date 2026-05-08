@@ -1,8 +1,10 @@
 package com.elif.aiservice.mcp;
 
 import com.elif.aiservice.rag.EmbeddingService;
+import com.elif.aiservice.rag.QdrantService;
 import com.elif.aiservice.rag.RagService;
 import com.elif.aiservice.rag.RetrievalService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +24,8 @@ public class McpController {
     private final EmbeddingService embeddingService;
     private final RetrievalService retrievalService;
     private final RagService ragService;
+    private final QdrantService qdrantService;
+    private final ObjectMapper objectMapper;
 
     @Value("${ai.service.token}")
     private String serviceToken;
@@ -67,6 +71,24 @@ public class McpController {
         try {
             Object toolResult = switch (name == null ? "" : name) {
                 case "document.embed" -> Map.of("embedding", embeddingService.createEmbedding(stringArg(arguments, "content")));
+                case "document.index" -> {
+                    qdrantService.upsertChunk(
+                            longArg(arguments, "documentId"),
+                            longArg(arguments, "chunkId"),
+                            intArg(arguments, "chunkIndex", 0),
+                            stringArg(arguments, "content"),
+                            nullableIntArg(arguments, "startOffset"),
+                            nullableIntArg(arguments, "endOffset"),
+                            nullableIntArg(arguments, "pageStart"),
+                            nullableIntArg(arguments, "pageEnd"),
+                            doubleListArg(arguments, "embedding")
+                    );
+                    yield Map.of("indexed", true);
+                }
+                case "document.delete" -> {
+                    qdrantService.deleteDocument(longArg(arguments, "documentId"));
+                    yield Map.of("deleted", true);
+                }
                 case "retrieval.search" -> Map.of("chunks", retrievalService.retrieveTopK(
                         longArg(arguments, "documentId"),
                         stringArg(arguments, "query"),
@@ -95,6 +117,8 @@ public class McpController {
     private List<Map<String, Object>> tools() {
         return List.of(
                 tool("document.embed", "Embed document chunk", "Creates an embedding vector for chunk text."),
+                tool("document.index", "Index document chunk", "Stores a chunk vector and payload in Qdrant."),
+                tool("document.delete", "Delete document vectors", "Deletes all Qdrant vectors for a document."),
                 tool("retrieval.search", "Search retrieved chunks", "Finds relevant chunks for a document and query."),
                 tool("rag.answer", "Answer with RAG", "Retrieves document chunks and generates an answer only from that context.")
         );
@@ -137,5 +161,27 @@ public class McpController {
             return number.intValue();
         }
         return Integer.parseInt(value.toString());
+    }
+
+    private Integer nullableIntArg(Map<String, Object> args, String name) {
+        Object value = args.get(name);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        return Integer.parseInt(value.toString());
+    }
+
+    private List<Double> doubleListArg(Map<String, Object> args, String name) {
+        Object value = args.get(name);
+        if (value == null) {
+            throw new IllegalArgumentException(name + " is required");
+        }
+        return objectMapper.convertValue(
+                value,
+                objectMapper.getTypeFactory().constructCollectionType(List.class, Double.class)
+        );
     }
 }
