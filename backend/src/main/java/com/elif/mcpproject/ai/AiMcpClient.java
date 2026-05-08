@@ -9,6 +9,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -30,14 +31,46 @@ public class AiMcpClient {
         return objectMapper.convertValue(embedding, objectMapper.getTypeFactory().constructCollectionType(List.class, Double.class));
     }
 
-    public String answer(Long documentId, String question, int topK) {
+    public AnswerResult answer(Long documentId, String question, int topK) {
         Map<String, Object> result = callTool("rag.answer", Map.of(
                 "documentId", documentId,
                 "question", question,
                 "topK", topK
         ));
         Object answer = result.get("answer");
-        return answer == null ? "" : answer.toString();
+        List<Citation> citations = objectMapper.convertValue(
+                result.get("chunks"),
+                objectMapper.getTypeFactory().constructCollectionType(List.class, Citation.class)
+        );
+        return new AnswerResult(answer == null ? "" : answer.toString(), citations == null ? List.of() : citations);
+    }
+
+    public void indexChunk(
+            Long documentId,
+            Long chunkId,
+            Integer chunkIndex,
+            String content,
+            Integer startOffset,
+            Integer endOffset,
+            Integer pageStart,
+            Integer pageEnd,
+            List<Double> embedding
+    ) {
+        Map<String, Object> arguments = new HashMap<>();
+        arguments.put("documentId", documentId);
+        arguments.put("chunkId", chunkId);
+        arguments.put("chunkIndex", chunkIndex);
+        arguments.put("content", content == null ? "" : content);
+        arguments.put("startOffset", startOffset);
+        arguments.put("endOffset", endOffset);
+        arguments.put("pageStart", pageStart);
+        arguments.put("pageEnd", pageEnd);
+        arguments.put("embedding", embedding);
+        callTool("document.index", arguments);
+    }
+
+    public void deleteDocumentIndex(Long documentId) {
+        callTool("document.delete", Map.of("documentId", documentId));
     }
 
     private Map<String, Object> callTool(String name, Map<String, Object> arguments) {
@@ -81,5 +114,23 @@ public class AiMcpClient {
 
         Object json = content.get(0).get("json");
         return objectMapper.convertValue(json, Map.class);
+    }
+
+    public record AnswerResult(
+            String answer,
+            List<Citation> citations
+    ) {
+    }
+
+    public record Citation(
+            Long id,
+            Integer chunkIndex,
+            String content,
+            Integer startOffset,
+            Integer endOffset,
+            Integer pageStart,
+            Integer pageEnd,
+            double score
+    ) {
     }
 }
