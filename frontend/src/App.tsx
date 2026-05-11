@@ -6,6 +6,7 @@ import DocumentsPage from "./pages/DocumentsPage";
 import SettingsPage from "./pages/SettingsPage";
 import { isAuthenticated } from "./store/authStore";
 import AppShell from "./components/layout/AppShell";
+import { useTheme } from "./hooks/useTheme";
 
 function ProtectedLayout() {
   if (!isAuthenticated()) {
@@ -15,6 +16,7 @@ function ProtectedLayout() {
 }
 
 function App() {
+  useTheme();
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/chat" replace />} />

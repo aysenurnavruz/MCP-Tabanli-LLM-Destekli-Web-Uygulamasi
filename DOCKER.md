@@ -12,6 +12,7 @@ Servisler:
 - Backend: http://localhost:8080
 - AI service MCP: http://localhost:8081/mcp
 - MySQL: localhost:3306
+- Qdrant: http://localhost:6333
 
 Arka planda calistirmak icin:
 

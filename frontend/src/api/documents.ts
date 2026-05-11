@@ -9,6 +9,12 @@ export type DocumentItem = {
   createdAt: string;
 };
 
+export type DocumentReprocessResponse = {
+  documentId: number;
+  chunkCount: number;
+  indexed: boolean;
+};
+
 export async function uploadDocument(file: File) {
   const form = new FormData();
   form.append("file", file);
@@ -23,5 +29,14 @@ export async function listDocuments(page = 0, size = 20) {
   const { data } = await api.get<PageResponse<DocumentItem>>("/api/documents", {
     params: { page, size },
   });
+  return data;
+}
+
+export async function deleteDocument(documentId: number) {
+  await api.delete(`/api/documents/${documentId}`);
+}
+
+export async function reprocessDocument(documentId: number) {
+  const { data } = await api.post<DocumentReprocessResponse>(`/api/documents/${documentId}/reprocess`);
   return data;
 }

@@ -78,56 +78,56 @@ function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 py-8">
-      <div className="mx-auto w-full max-w-xl rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+    <div className="min-h-screen bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 px-4 py-8">
+      <div className="mx-auto w-full max-w-xl rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
         <h1 className="text-2xl font-semibold">Profil</h1>
-        <p className="mt-2 text-sm text-zinc-400">
+        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
           Buradan parolani guncelleyebilirsin.
         </p>
 
         <div className="mt-6 space-y-2">
-          <p className="text-xs text-zinc-400">Kullanici</p>
+          <p className="text-xs text-zinc-600 dark:text-zinc-400">Kullanici</p>
           {loadingUser ? (
-            <p className="text-sm text-zinc-300 inline-flex items-center gap-2">
+            <p className="text-sm text-zinc-700 dark:text-zinc-300 inline-flex items-center gap-2">
               <Loader2 className="size-4 animate-spin" />
               Kullanici bilgisi yukleniyor
             </p>
           ) : (
-            <p className="text-sm text-zinc-200">{email || "-"}</p>
+            <p className="text-sm text-zinc-900 dark:text-zinc-200">{email || "-"}</p>
           )}
         </div>
 
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <div className="space-y-2">
-            <label className="text-sm text-zinc-300">Mevcut Parola</label>
+            <label className="text-sm text-zinc-700 dark:text-zinc-300">Mevcut Parola</label>
             <Input
               type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               placeholder="Mevcut parolani gir"
-              className="bg-zinc-950 border-zinc-800"
+              className="bg-white border-zinc-300 text-zinc-900 dark:bg-zinc-950 dark:border-zinc-800 dark:text-zinc-100"
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm text-zinc-300">Yeni Parola</label>
+            <label className="text-sm text-zinc-700 dark:text-zinc-300">Yeni Parola</label>
             <Input
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="Yeni parolani gir"
-              className="bg-zinc-950 border-zinc-800"
+              className="bg-white border-zinc-300 text-zinc-900 dark:bg-zinc-950 dark:border-zinc-800 dark:text-zinc-100"
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm text-zinc-300">Yeni Parola (Tekrar)</label>
+            <label className="text-sm text-zinc-700 dark:text-zinc-300">Yeni Parola (Tekrar)</label>
             <Input
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Yeni parolani tekrar gir"
-              className="bg-zinc-950 border-zinc-800"
+              className="bg-white border-zinc-300 text-zinc-900 dark:bg-zinc-950 dark:border-zinc-800 dark:text-zinc-100"
             />
           </div>
 

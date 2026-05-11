@@ -3,7 +3,15 @@ import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { changePassword, getCurrentUserEmail } from "@/api/profile";
+import { useTheme } from "@/hooks/useTheme";
 
 function parseError(err: unknown) {
   const e = err as { response?: { status?: number; data?: { message?: string } }; message?: string };
@@ -14,6 +22,7 @@ function parseError(err: unknown) {
 }
 
 function SettingsPage() {
+  const { theme, setTheme } = useTheme();
   const [email, setEmail] = useState("");
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -79,15 +88,15 @@ function SettingsPage() {
   };
 
   return (
-    <div className="min-h-svh flex flex-col bg-zinc-950 text-zinc-100">
-        <header className="h-14 border-b border-zinc-800 px-4 flex items-center">
+    <div className="min-h-svh flex flex-col bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
+        <header className="h-14 border-b border-zinc-200 dark:border-zinc-800 px-4 flex items-center">
           <p className="text-sm font-semibold truncate">Ayarlar</p>
         </header>
 
         <div className="px-4 py-8">
-          <div className="mx-auto w-full max-w-xl rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+          <div className="mx-auto w-full max-w-xl rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
         <h1 className="text-2xl font-semibold">Ayarlar</h1>
-        <p className="mt-2 text-sm text-zinc-400">
+        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
           Hesap ayarlarini buradan yonetebilirsin.
         </p>
 
@@ -108,10 +117,24 @@ function SettingsPage() {
             type="button"
             variant="outline"
             onClick={() => setShowPasswordForm((prev) => !prev)}
-            className="border-zinc-700 bg-zinc-950 text-zinc-100 hover:bg-zinc-800"
+            className="border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800"
           >
             Parola Degistir
           </Button>
+        </div>
+
+        <div className="mt-6 space-y-3">
+          <p className="text-xs text-zinc-400">Tema</p>
+          <Select value={theme} onValueChange={(value: "light" | "dark" | "system") => setTheme(value)}>
+            <SelectTrigger className="w-48 border-zinc-300 bg-white text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
+              <SelectItem value="light">Acik Tema</SelectItem>
+              <SelectItem value="dark">Koyu Tema</SelectItem>
+              <SelectItem value="system">Sistem Ayari</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {showPasswordForm ? (
@@ -123,7 +146,7 @@ function SettingsPage() {
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="Mevcut parolani gir"
-                className="bg-zinc-950 border-zinc-800"
+                className="bg-white dark:bg-zinc-950 border-zinc-300 dark:border-zinc-800"
               />
             </div>
 
@@ -134,7 +157,7 @@ function SettingsPage() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Yeni parolani gir"
-                className="bg-zinc-950 border-zinc-800"
+                className="bg-white dark:bg-zinc-950 border-zinc-300 dark:border-zinc-800"
               />
             </div>
 
@@ -145,7 +168,7 @@ function SettingsPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Yeni parolani tekrar gir"
-                className="bg-zinc-950 border-zinc-800"
+                className="bg-white dark:bg-zinc-950 border-zinc-300 dark:border-zinc-800"
               />
             </div>
 
