@@ -40,7 +40,7 @@ public class EmbeddingService {
     }
 
     private List<Double> createLocalEmbedding(String text) {
-        int dimensions = 64;
+        int dimensions = 1536;
         double[] vector = new double[dimensions];
         String safeText = text == null ? "" : text.toLowerCase(Locale.ROOT);
 

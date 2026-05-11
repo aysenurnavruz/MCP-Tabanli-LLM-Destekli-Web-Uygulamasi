@@ -1,60 +1,74 @@
-import { useState } from "react";
-import { loginApi, logoutApi, registerApi, type LoginRequest, type RegisterRequest } from "../api/auth";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  loginApi,
+  logoutApi,
+  registerApi,
+  type LoginRequest,
+  type RegisterRequest,
+} from "../api/auth";
+import { getApiErrorMessage } from "../utils/apiError";
 import { setTokens } from "../store/authStore";
 
-function getErrorMessage(err: unknown): string {
-  const maybe = err as {
-    response?: { data?: { message?: string } };
-    message?: string;
-  };
-  return (
-    maybe?.response?.data?.message ||
-    maybe?.message ||
-    "Beklenmeyen bir hata oluştu."
-  );
-}
-
 export function useAuth() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const queryClient = useQueryClient();
+
+  const loginMutation = useMutation({
+    mutationFn: loginApi,
+    onSuccess: (res) => {
+      setTokens(res.accessToken, res.refreshToken);
+    },
+  });
+
+  const registerMutation = useMutation({
+    mutationFn: registerApi,
+    onSuccess: (res) => {
+      setTokens(res.accessToken, res.refreshToken);
+    },
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: logoutApi,
+    onSuccess: () => {
+      queryClient.clear();
+    },
+  });
 
   const login = async (payload: LoginRequest) => {
-    setLoading(true);
-    setError("");
+    loginMutation.reset();
     try {
-      const res = await loginApi(payload);
-      setTokens(res.accessToken, res.refreshToken);
+      await loginMutation.mutateAsync(payload);
       return true;
-    } catch (err) {
-      setError(getErrorMessage(err));
+    } catch {
       return false;
-    } finally {
-      setLoading(false);
     }
   };
 
   const register = async (payload: RegisterRequest) => {
-    setLoading(true);
-    setError("");
+    registerMutation.reset();
     try {
-      const res = await registerApi(payload);
-      setTokens(res.accessToken, res.refreshToken);
+      await registerMutation.mutateAsync(payload);
       return true;
-    } catch (err) {
-      setError(getErrorMessage(err));
+    } catch {
       return false;
-    } finally {
-      setLoading(false);
     }
   };
 
   const logout = async () => {
-    await logoutApi();
+    logoutMutation.reset();
+    await logoutMutation.mutateAsync();
   };
 
   return {
-    loading,
-    error,
+    loading:
+      loginMutation.isPending ||
+      registerMutation.isPending ||
+      logoutMutation.isPending,
+    error:
+      getApiErrorMessage(loginMutation.error, "Beklenmeyen bir hata oluştu.", {
+        unauthorizedMessage: "E-posta veya şifre hatalı.",
+      }) ||
+      getApiErrorMessage(registerMutation.error, "Beklenmeyen bir hata oluştu.") ||
+      getApiErrorMessage(logoutMutation.error, "Beklenmeyen bir hata oluştu."),
     login,
     register,
     logout,

@@ -1,9 +1,11 @@
+import { useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { formatDate } from "@/utils/formatDate";
+import type { MessageWithCitations } from "@/api/chats";
 
 interface ChatContentProps {
-  messages: any[];
+  messages: MessageWithCitations[];
   messagesLoading: boolean;
   messagesError: string | null;
   chatsError: string | null;
@@ -25,6 +27,14 @@ export function ChatContent({
   uploadError,
   onSubmit,
 }: ChatContentProps) {
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!hasActiveChat) return;
+
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [hasActiveChat, messages, messagesLoading]);
+
   return (
     <>
       {hasActiveChat ? (
@@ -60,25 +70,59 @@ export function ChatContent({
                     key={m.id}
                     className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                   >
-                    <div
-                      className={`w-fit max-w-2xl rounded-xl px-4 py-3 border ${
-                        isUser
-                          ? "bg-primary text-primary-foreground border-transparent"
-                          : "bg-card text-card-foreground"
-                      }`}
-                    >
-                      <p className="whitespace-pre-wrap text-sm">{m.content}</p>
-                      <p
-                        className={`text-[11px] mt-2 ${
-                          isUser ? "text-primary-foreground/70" : "text-muted-foreground"
+                    <div className="w-fit max-w-2xl space-y-2">
+                      <div
+                        className={`rounded-xl px-4 py-3 border ${
+                          isUser
+                            ? "bg-primary text-primary-foreground border-transparent"
+                            : "bg-card text-card-foreground"
                         }`}
                       >
-                        {formatDate(m.createdAt)}
-                      </p>
+                        <p className="whitespace-pre-wrap text-sm">{m.content}</p>
+                        <p
+                          className={`text-[11px] mt-2 ${
+                            isUser ? "text-primary-foreground/70" : "text-muted-foreground"
+                          }`}
+                        >
+                          {formatDate(m.createdAt)}
+                        </p>
+                      </div>
+
+                      {!isUser && m.citations?.length ? (
+                        <div className="ml-1 max-w-2xl rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-3 py-2 text-xs text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+                          <p className="mb-2 text-[11px] italic text-zinc-500 dark:text-zinc-400">
+                            Kaynaklar
+                          </p>
+                          <div className="space-y-2">
+                            {m.citations.map((citation, index) => {
+                              const pageLabel =
+                                citation.pageStart && citation.pageEnd
+                                  ? citation.pageStart === citation.pageEnd
+                                    ? `Sayfa ${citation.pageStart}`
+                                    : `Sayfa ${citation.pageStart}-${citation.pageEnd}`
+                                  : "Sayfa bilgisi yok";
+
+                              return (
+                                <div key={`${m.id}-${citation.chunkId}-${index}`} className="space-y-1">
+                                  <p className="font-medium text-zinc-800 dark:text-zinc-200">
+                                    {pageLabel}
+                                  </p>
+                                  {citation.preview ? (
+                                    <p className="italic text-zinc-600 dark:text-zinc-400">
+                                      {citation.preview}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 );
               })}
+              <div ref={bottomRef} />
             </div>
           </section>
 

@@ -1,34 +1,35 @@
 import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { uploadDocument, type DocumentItem } from "../api/documents";
-
-function parseError(err: unknown) {
-  const e = err as { response?: { data?: { message?: string } }; message?: string };
-  return e?.response?.data?.message || e?.message || "Dosya yüklenemedi.";
-}
+import { getApiErrorMessage } from "../utils/apiError";
+import { queryKeys } from "../lib/queryKeys";
 
 export function useUpload() {
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState("");
+  const queryClient = useQueryClient();
   const [document, setDocument] = useState<DocumentItem | null>(null);
 
-  const upload = async (file: File) => {
-    setUploading(true);
-    setError("");
-    try {
-      const doc = await uploadDocument(file);
+  const uploadMutation = useMutation({
+    mutationFn: uploadDocument,
+    onSuccess: (doc) => {
       setDocument(doc);
+      queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+    },
+  });
+
+  const upload = async (file: File) => {
+    uploadMutation.reset();
+
+    try {
+      const doc = await uploadMutation.mutateAsync(file);
       return doc;
-    } catch (err) {
-      setError(parseError(err));
+    } catch {
       return null;
-    } finally {
-      setUploading(false);
     }
   };
 
   return {
-    uploading,
-    error,
+    uploading: uploadMutation.isPending,
+    error: getApiErrorMessage(uploadMutation.error, "Dosya yüklenemedi."),
     document,
     upload,
   };

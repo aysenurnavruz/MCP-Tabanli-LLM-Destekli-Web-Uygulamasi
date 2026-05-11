@@ -12,7 +12,14 @@ function AppShell() {
   const location = useLocation();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
-  const { chats, loading: chatsLoading, createNewChat } = useChats();
+  const {
+    chats,
+    loading: chatsLoading,
+    error: chatsError,
+    refreshChats,
+    createNewChat,
+    removeChat,
+  } = useChats();
   const { refreshDocuments } = useDocuments();
   const { uploading, upload } = useUpload();
 
@@ -69,11 +76,14 @@ function AppShell() {
         activeChatId={activeChatId}
         setActiveChatId={(chatId) => navigate(`/chat?chatId=${chatId}`)}
         chatsLoading={chatsLoading}
+        chatsError={chatsError}
+        onRefreshChats={refreshChats}
         uploading={uploading}
         onPickFile={onPickFile}
+        onDeleteChat={removeChat}
       />
 
-      <SidebarInset className="min-h-svh bg-zinc-950 text-zinc-100">
+      <SidebarInset className="min-h-svh bg-background text-foreground">
         <Outlet />
       </SidebarInset>
     </SidebarProvider>
