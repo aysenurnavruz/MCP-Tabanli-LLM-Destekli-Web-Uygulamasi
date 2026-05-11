@@ -4,7 +4,6 @@ import com.elif.mcpproject.ai.AiMcpClient;
 import com.elif.mcpproject.chat.Chat;
 import com.elif.mcpproject.chat.ChatRepository;
 import com.elif.mcpproject.chat.MessageRepository;
-import com.elif.mcpproject.document.dto.DocumentReprocessResponse;
 import com.elif.mcpproject.document.dto.DocumentResponse;
 import com.elif.mcpproject.document.text.DocumentTextRepository;
 import com.elif.mcpproject.security.CurrentUserService;
@@ -77,9 +76,20 @@ public class DocumentService {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "File save failed: " + e.getMessage());
         }
 
+        String extractedText = null;
         String contentType = file.getContentType();
         boolean isPdf = "application/pdf".equalsIgnoreCase(contentType) || original.toLowerCase().endsWith(".pdf");
-        ExtractionResult extraction = extractText(target, isPdf);
+
+        if (isPdf){
+            try (PDDocument pdf = PDDocument.load(target.toFile())){
+                PDFTextStripper stripper = new PDFTextStripper();
+                extractedText = stripper.getText(pdf);
+                if (extractedText != null) extractedText = extractedText.trim();
+                if (extractedText != null && extractedText.isBlank()) extractedText = null;
+            }catch (Exception e){
+                extractedText = null;
+            }
+        }
 
         Instant now = Instant.now();
 
@@ -90,13 +100,30 @@ public class DocumentService {
                 .contentType((file.getContentType()))
                 .sizeBytes((file.getSize()))
                 .storagePath(storagePath)
-                .extractedText(extraction.text())
+                .extractedText(extractedText)
                 .createdAt((now))
                 .build();
 
         Document saved = documentRepository.save(doc);
 
-        processAndIndex(saved, extraction.pageRanges());
+        if (extractedText != null) {
+
+            List<DocumentChunk> chunks = splitWithOffsets(extractedText, saved);
+
+            for (DocumentChunk chunk : chunks) {
+
+                List<Double> embeddingVector = aiMcpClient.createEmbedding(chunk.getContent());
+
+                String embeddingJson;
+                try {
+                    embeddingJson = objectMapper.writeValueAsString(embeddingVector);
+                } catch (Exception e) {
+                    throw new RuntimeException("Embedding JSON convert error", e);
+                }
+                chunk.setEmbedding(embeddingJson);
+                chunkRepository.save(chunk);
+            }
+        }
         return toResponse(saved);
     }
 
@@ -130,34 +157,9 @@ public class DocumentService {
         chatRepository.deleteAll(chats);
         chunkRepository.deleteAllByDocumentId(doc.getId());
         documentTextRepository.deleteByDocumentId(doc.getId());
-        aiMcpClient.deleteDocumentIndex(doc.getId());
         documentRepository.delete(doc);
 
         deleteStoredFile(doc);
-    }
-
-    @Transactional
-    public DocumentReprocessResponse reprocessMine(Long id, Principal principal) {
-        AppUser user = currentUserService.requireCurrentUser(principal);
-        Document doc = documentRepository.findByIdAndUserId(id, user.getId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
-
-        Path path = Paths.get(storageRoot).resolve(doc.getStoragePath()).normalize();
-        if (!Files.exists(path)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Stored file not found");
-        }
-
-        boolean isPdf = "application/pdf".equalsIgnoreCase(doc.getContentType())
-                || doc.getOriginalFilename().toLowerCase().endsWith(".pdf");
-        ExtractionResult extraction = extractText(path, isPdf);
-        doc.setExtractedText(extraction.text());
-        documentRepository.save(doc);
-
-        chunkRepository.deleteAllByDocumentId(doc.getId());
-        aiMcpClient.deleteDocumentIndex(doc.getId());
-        int chunkCount = processAndIndex(doc, extraction.pageRanges());
-
-        return new DocumentReprocessResponse(doc.getId(), chunkCount, true);
     }
 
     private DocumentResponse toResponse(Document d){
@@ -170,41 +172,7 @@ public class DocumentService {
         );
     }
 
-    private int processAndIndex(Document document, List<PageRange> pageRanges) {
-        if (document.getExtractedText() == null || document.getExtractedText().isBlank()) {
-            return 0;
-        }
-
-        List<DocumentChunk> chunks = splitWithOffsets(document.getExtractedText(), document, pageRanges);
-
-        for (DocumentChunk chunk : chunks) {
-            List<Double> embeddingVector = aiMcpClient.createEmbedding(chunk.getContent());
-
-            String embeddingJson;
-            try {
-                embeddingJson = objectMapper.writeValueAsString(embeddingVector);
-            } catch (Exception e) {
-                throw new RuntimeException("Embedding JSON convert error", e);
-            }
-            chunk.setEmbedding(embeddingJson);
-            DocumentChunk savedChunk = chunkRepository.save(chunk);
-            aiMcpClient.indexChunk(
-                    document.getId(),
-                    savedChunk.getId(),
-                    savedChunk.getChunkIndex(),
-                    savedChunk.getContent(),
-                    savedChunk.getStartOffset(),
-                    savedChunk.getEndOffset(),
-                    savedChunk.getPageStart(),
-                    savedChunk.getPageEnd(),
-                    embeddingVector
-            );
-        }
-
-        return chunks.size();
-    }
-
-    private List<DocumentChunk> splitWithOffsets(String text, Document document, List<PageRange> pageRanges) {
+    private List<DocumentChunk> splitWithOffsets(String text, Document document) {
 
         int chunkSize = 500;
         List<DocumentChunk> chunks = new ArrayList<>();
@@ -214,7 +182,6 @@ public class DocumentService {
             int end = Math.min(text.length(), i + chunkSize);
 
             String chunkText = text.substring(i, end);
-            PageSpan pageSpan = pageSpanFor(i, end, pageRanges);
 
             DocumentChunk chunk = DocumentChunk.builder()
                 .document(document)
@@ -222,77 +189,12 @@ public class DocumentService {
                 .chunkIndex(chunks.size())
                 .startOffset(i)
                 .endOffset(end)
-                .pageStart(pageSpan.start())
-                .pageEnd(pageSpan.end())
                 .build();
 
             chunks.add(chunk);
         }
 
         return chunks;
-    }
-
-    private ExtractionResult extractText(Path path, boolean isPdf) {
-        if (!isPdf) {
-            return new ExtractionResult(null, List.of());
-        }
-
-        try (PDDocument pdf = PDDocument.load(path.toFile())) {
-            StringBuilder text = new StringBuilder();
-            List<PageRange> pageRanges = new ArrayList<>();
-
-            for (int page = 1; page <= pdf.getNumberOfPages(); page++) {
-                PDFTextStripper stripper = new PDFTextStripper();
-                stripper.setStartPage(page);
-                stripper.setEndPage(page);
-
-                String pageText = stripper.getText(pdf);
-                if (pageText == null || pageText.isBlank()) {
-                    continue;
-                }
-
-                if (!text.isEmpty()) {
-                    text.append("\n\n");
-                }
-
-                int start = text.length();
-                text.append(pageText);
-                int end = text.length();
-                pageRanges.add(new PageRange(page, start, end));
-            }
-
-            String extractedText = text.toString();
-            if (extractedText.isBlank()) {
-                return new ExtractionResult(null, List.of());
-            }
-
-            return new ExtractionResult(extractedText, pageRanges);
-        } catch (Exception e) {
-            return new ExtractionResult(null, List.of());
-        }
-    }
-
-    private PageSpan pageSpanFor(int chunkStart, int chunkEnd, List<PageRange> pageRanges) {
-        if (pageRanges == null || pageRanges.isEmpty()) {
-            return new PageSpan(null, null);
-        }
-
-        Integer pageStart = null;
-        Integer pageEnd = null;
-
-        for (PageRange pageRange : pageRanges) {
-            boolean overlaps = chunkStart < pageRange.endOffset() && chunkEnd > pageRange.startOffset();
-            if (!overlaps) {
-                continue;
-            }
-
-            if (pageStart == null) {
-                pageStart = pageRange.pageNumber();
-            }
-            pageEnd = pageRange.pageNumber();
-        }
-
-        return new PageSpan(pageStart, pageEnd);
     }
 
     private void deleteStoredFile(Document document) {
@@ -306,14 +208,5 @@ public class DocumentService {
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "File delete failed: " + e.getMessage());
         }
-    }
-
-    private record ExtractionResult(String text, List<PageRange> pageRanges) {
-    }
-
-    private record PageRange(Integer pageNumber, Integer startOffset, Integer endOffset) {
-    }
-
-    private record PageSpan(Integer start, Integer end) {
     }
 }

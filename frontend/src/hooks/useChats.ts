@@ -1,23 +1,41 @@
 import { useCallback, useEffect, useState } from "react";
-import { createChat, listChats, type Chat } from "../api/chats";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type Chat, createChat, deleteChat, listChats } from "../api/chats";
+import { getApiErrorMessage } from "../utils/apiError";
+import { queryKeys } from "../lib/queryKeys";
 
 const ACTIVE_CHAT_KEY = "activeChatId";
+const CACHED_CHATS_KEY = "cachedChats";
 
-function parseError(err: unknown) {
-  const e = err as { response?: { data?: { message?: string } }; message?: string };
-  return e?.response?.data?.message || e?.message || "Bir hata oluştu.";
+function readCachedChats(): Chat[] {
+  const raw = localStorage.getItem(CACHED_CHATS_KEY);
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed as Chat[];
+  } catch {
+    return [];
+  }
 }
 
 export function useChats() {
-  const [chats, setChats] = useState<Chat[]>([]);
+  const queryClient = useQueryClient();
+
+  const chatsQuery = useQuery({
+    queryKey: queryKeys.chats,
+    queryFn: () => listChats(),
+  });
+
+  const [cachedChats, setCachedChats] = useState<Chat[]>(() => readCachedChats());
+
   const [activeChatId, setActiveChatIdState] = useState<number | null>(() => {
     const raw = localStorage.getItem(ACTIVE_CHAT_KEY);
     if (!raw) return null;
     const parsed = Number(raw);
     return Number.isNaN(parsed) ? null : parsed;
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
   const setActiveChatId = useCallback((id: number | null) => {
     setActiveChatIdState(id);
@@ -28,63 +46,103 @@ export function useChats() {
     localStorage.setItem(ACTIVE_CHAT_KEY, String(id));
   }, []);
 
-  const refreshChats = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const page = await listChats();
-      setChats(page.content);
-      setActiveChatIdState((prev) => {
-        if (page.content.length === 0) {
-          localStorage.removeItem(ACTIVE_CHAT_KEY);
-          return null;
-        }
+  useEffect(() => {
+    const next = chatsQuery.data?.content;
+    if (!next) return;
 
-        const hasActive = prev !== null && page.content.some((c) => c.id === prev);
-        const next = hasActive ? prev : page.content[0].id;
+    setCachedChats(next);
+    localStorage.setItem(CACHED_CHATS_KEY, JSON.stringify(next));
+  }, [chatsQuery.data]);
 
-        if (next === null) {
-          localStorage.removeItem(ACTIVE_CHAT_KEY);
-        } else {
-          localStorage.setItem(ACTIVE_CHAT_KEY, String(next));
-        }
-
-        return next;
-      });
-    } catch (err) {
-      setError(parseError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const createNewChat = useCallback(async (opts?: { documentId?: number; title?: string }) => {
-    setError("");
-    try {
-      const created = await createChat({
-        documentId: opts?.documentId,
-        title: opts?.title ?? "Yeni Sohbet",
-      });
-      setChats((prev) => [created, ...prev]);
+  const createChatMutation = useMutation({
+    mutationFn: (payload: { documentId?: number; title?: string }) => createChat(payload),
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.chats });
       setActiveChatId(created.id);
-      return created;
-    } catch (err) {
-      setError(parseError(err));
-      return null;
-    }
-  }, [setActiveChatId]);
+    },
+  });
+
+  const deleteChatMutation = useMutation({
+    mutationFn: deleteChat,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.chats });
+      if (activeChatId !== null) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.messages(activeChatId) });
+      }
+    },
+  });
 
   useEffect(() => {
-    refreshChats();
-  }, [refreshChats]);
+    const chats = chatsQuery.data?.content ?? cachedChats;
+
+    setActiveChatIdState((prev) => {
+      if (chats.length === 0) {
+        localStorage.removeItem(ACTIVE_CHAT_KEY);
+        return null;
+      }
+
+      const hasActive = prev !== null && chats.some((c) => c.id === prev);
+      const next = hasActive ? prev : chats[0].id;
+
+      if (next === null) {
+        localStorage.removeItem(ACTIVE_CHAT_KEY);
+      } else {
+        localStorage.setItem(ACTIVE_CHAT_KEY, String(next));
+      }
+
+      return next;
+    });
+  }, [cachedChats, chatsQuery.data]);
+
+  const chats = chatsQuery.data?.content ?? cachedChats;
+
+  const refreshChats = useCallback(async () => {
+    await chatsQuery.refetch();
+  }, [chatsQuery]);
+
+  const createNewChat = useCallback(
+    async (opts?: { documentId?: number; title?: string }) => {
+      createChatMutation.reset();
+      try {
+        const created = await createChatMutation.mutateAsync({
+          documentId: opts?.documentId,
+          title: opts?.title ?? "Yeni Sohbet",
+        });
+        return created;
+      } catch {
+        return null;
+      }
+    },
+    [createChatMutation]
+  );
+
+  const removeChat = useCallback(
+    async (chatId: number) => {
+      deleteChatMutation.reset();
+      try {
+        await deleteChatMutation.mutateAsync(chatId);
+        if (activeChatId === chatId) {
+          setActiveChatId(null);
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [activeChatId, deleteChatMutation, setActiveChatId]
+  );
 
   return {
     chats,
     activeChatId,
     setActiveChatId,
-    loading,
-    error,
+    loading: chatsQuery.isLoading || chatsQuery.isFetching,
+    error:
+      getApiErrorMessage(chatsQuery.error, "Sohbetler yüklenemedi.") ||
+      getApiErrorMessage(createChatMutation.error, "Sohbet oluşturulamadı.") ||
+      getApiErrorMessage(deleteChatMutation.error, "Sohbet silinemedi."),
     refreshChats,
     createNewChat,
+    removeChat,
   };
 }

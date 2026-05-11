@@ -32,12 +32,6 @@ public class DocumentChunk {
     @Column(name = "end_offset")
     private Integer endOffset;
 
-    @Column(name = "page_start")
-    private Integer pageStart;
-
-    @Column(name = "page_end")
-    private Integer pageEnd;
-
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;
 

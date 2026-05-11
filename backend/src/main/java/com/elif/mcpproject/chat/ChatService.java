@@ -1,7 +1,6 @@
 package com.elif.mcpproject.chat;
 
 import com.elif.mcpproject.ai.AiMcpClient;
-import com.elif.mcpproject.chat.dto.CitationResponse;
 import com.elif.mcpproject.chat.dto.ChatResponse;
 import com.elif.mcpproject.chat.dto.MessageResponse;
 import com.elif.mcpproject.chat.dto.MessageRequest;
@@ -19,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import java.security.Principal;
 import java.time.Instant;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -139,8 +137,7 @@ public class ChatService {
 
                 return new SendMessageResponse(
                         toResponse(userMsg),
-                        assistantMSg == null ? null : toResponse(assistantMSg),
-                        List.of()
+                        assistantMSg == null ? null : toResponse(assistantMSg)
                 );
 
 
@@ -182,20 +179,19 @@ public class ChatService {
 
                 return new SendMessageResponse(
                         toResponse(m),
-                        assistantMsg == null ? null : toResponse(assistantMsg),
-                        List.of()
+                        assistantMsg == null ? null : toResponse(assistantMsg)
                 );
             }
             throw e;
         }
 
-        AiMcpClient.AnswerResult answerResult = aiMcpClient.answer(chat.getDocument().getId(), content, 3);
+        String assistantText = aiMcpClient.answer(chat.getDocument().getId(), content, 3);
 
         Message assistantMsg = Message.builder()
                 .chat(chat)
                 .role(Message.Role.ASSISTANT)
                 .status(Message.Status.CREATED)
-                .content(answerResult.answer())
+                .content(assistantText)
                 .createdAt(Instant.now())
                 .build();
 
@@ -203,8 +199,7 @@ public class ChatService {
 
         return new SendMessageResponse(
                 toResponse(savedUser),
-                toResponse(savedAssistant),
-                toCitationResponses(answerResult.citations())
+                toResponse(savedAssistant)
         );
     }
 
@@ -216,32 +211,5 @@ public class ChatService {
                 m.getContent(),
                 m.getCreatedAt()
         );
-    }
-
-    private List<CitationResponse> toCitationResponses(List<AiMcpClient.Citation> citations) {
-        if (citations == null) {
-            return List.of();
-        }
-
-        return citations.stream()
-                .map(citation -> new CitationResponse(
-                        citation.id(),
-                        citation.chunkIndex(),
-                        citation.pageStart(),
-                        citation.pageEnd(),
-                        citation.startOffset(),
-                        citation.endOffset(),
-                        citation.score(),
-                        preview(citation.content())
-                ))
-                .toList();
-    }
-
-    private String preview(String content) {
-        if (content == null || content.isBlank()) {
-            return "";
-        }
-        String oneLine = content.replaceAll("\\s+", " ").trim();
-        return oneLine.length() <= 240 ? oneLine : oneLine.substring(0, 240);
     }
 }

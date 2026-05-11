@@ -1,7 +1,6 @@
 package com.elif.mcpproject.document;
 
 import com.elif.mcpproject.document.dto.DocumentResponse;
-import com.elif.mcpproject.document.dto.DocumentReprocessResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -41,10 +40,5 @@ public class DocumentController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteMine(@PathVariable Long id, Principal principal) {
         documentService.deleteMine(id, principal);
-    }
-
-    @PostMapping("/{id}/reprocess")
-    public DocumentReprocessResponse reprocessMine(@PathVariable Long id, Principal principal) {
-        return documentService.reprocessMine(id, principal);
     }
 }
