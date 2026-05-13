@@ -89,26 +89,24 @@ function SettingsPage() {
 
   return (
     <div className="min-h-svh flex flex-col bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
-        <header className="h-14 border-b border-zinc-200 dark:border-zinc-800 px-4 flex items-center">
-          <p className="text-sm font-semibold truncate">Ayarlar</p>
-        </header>
+    
 
         <div className="px-4 py-8">
           <div className="mx-auto w-full max-w-xl rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
         <h1 className="text-2xl font-semibold">Ayarlar</h1>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-          Hesap ayarlarini buradan yonetebilirsin.
+          Hesap ayarlarını buradan yönetebilirsin.
         </p>
 
         <div className="mt-6 space-y-2">
-          <p className="text-xs text-zinc-400">Kullanici</p>
+          <p className="text-xs text-zinc-400">Kullanıcı</p>
           {loadingUser ? (
             <p className="text-sm text-zinc-300 inline-flex items-center gap-2">
               <Loader2 className="size-4 animate-spin" />
-              Kullanici bilgisi yukleniyor
+              Kullanıcı bilgisi yükleniyor
             </p>
           ) : (
-            <p className="text-sm text-zinc-200">{email || "-"}</p>
+            <p className="text-sm dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800">{email || "-"}</p>
           )}
         </div>
 
@@ -119,7 +117,7 @@ function SettingsPage() {
             onClick={() => setShowPasswordForm((prev) => !prev)}
             className="border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800"
           >
-            Parola Degistir
+            Parola Degiştir
           </Button>
         </div>
 
@@ -130,9 +128,9 @@ function SettingsPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
-              <SelectItem value="light">Acik Tema</SelectItem>
-              <SelectItem value="dark">Koyu Tema</SelectItem>
-              <SelectItem value="system">Sistem Ayari</SelectItem>
+              <SelectItem value="light">Açık</SelectItem>
+              <SelectItem value="dark">Koyu </SelectItem>
+              <SelectItem value="system">Sistem </SelectItem>
             </SelectContent>
           </Select>
         </div>

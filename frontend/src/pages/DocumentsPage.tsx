@@ -140,20 +140,14 @@ function DocumentsPage() {
                   sideOffset={8}
                   className="min-w-52 border-zinc-200 bg-white p-1.5 text-zinc-900 shadow-lg dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
                 >
-                  <DropdownMenuItem
-                    onClick={() => navigate(`/chat?documentId=${doc.id}`)}
-                    className="gap-2 rounded-md px-2 py-2.5 focus:bg-zinc-100 focus:text-zinc-900 dark:focus:bg-zinc-800 dark:focus:text-zinc-100"
-                  >
-                    <FileText className="size-4" />
-                    Yeni Sohbet
-                  </DropdownMenuItem>
+                 
                   <DropdownMenuItem
                     onClick={() => handleReprocessDocument(doc.id, doc.originalFilename)}
                     className="gap-2 rounded-md px-2 py-2.5 focus:bg-zinc-100 focus:text-zinc-900 dark:focus:bg-zinc-800 dark:focus:text-zinc-100"
                     disabled={reprocessingId === doc.id}
                   >
                     <RefreshCw className={`size-4 ${reprocessingId === doc.id ? "animate-spin" : ""}`} />
-                    Yeniden İşle ve Aç
+                    Yeni Sohbet Aç
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => handleDeleteDocument(doc.id)}

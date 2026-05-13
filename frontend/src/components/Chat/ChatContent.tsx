@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
-import { Loader2 } from "lucide-react";
+import { ArrowUp, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { formatDate } from "@/utils/formatDate";
 import type { MessageWithCitations } from "@/api/chats";
 
@@ -135,13 +136,24 @@ export function ChatContent({
             ) : null}
 
             <div className="mx-auto w-full max-w-3xl px-4 py-4">
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Mesajını yaz..."
-                disabled={!hasActiveChat}
-                className="rounded-lg"
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Mesajını yaz..."
+                  disabled={!hasActiveChat}
+                  className="rounded-lg"
+                />
+                <Button
+                  type="submit"
+                  disabled={!hasActiveChat || !input.trim()}
+                  size="icon-sm"
+                  className="shrink-0"
+                  aria-label="Mesaj gönder"
+                >
+                  <ArrowUp className="size-4" />
+                </Button>
+              </div>
             </div>
           </form>
         </>

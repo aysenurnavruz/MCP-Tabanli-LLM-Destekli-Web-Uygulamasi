@@ -5,12 +5,11 @@ import {
   ChevronDown,
   ChevronRight,
   FolderOpen,
-  Hexagon,
   Loader2,
   LogOut,
-  MessageSquare,
+  MessageCircle,
   PanelLeftClose,
-  Plus,
+  CirclePlus,
   Search,
   Settings,
   Trash2,
@@ -42,6 +41,7 @@ import {
 } from "@/components/ui/sidebar";
 
 import type { Chat } from "@/api/chats";
+//import { getCurrentUserEmail } from "@/api/profile";
 import { useAuth } from "@/hooks/useAuth";
 import { normalizeSearchValue } from "@/utils/search";
 
@@ -66,19 +66,22 @@ function SidebarHeaderComponent() {
     <div className="flex items-center justify-between gap-2 px-2 py-1">
       <button
         type="button"
-        onClick={() => {
-          if (!open) toggleSidebar();
-        }}
+        onClick={toggleSidebar}
         className="flex min-w-0 items-center gap-2"
       >
-        <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-zinc-900 text-white dark:bg-zinc-800 dark:text-zinc-100">
-          <Hexagon className="size-4" />
-        </div>
         {open ? (
-          <span className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            SYNORA
-          </span>
-        ) : null}
+          <>
+            <span className="ml-1 truncate text-lg font-bold tracking-[0.25em] text-transparent bg-clip-text bg-linear-to-r from-violet-500 to-cyan-400">
+              SYNORA
+            </span>
+          </>
+        ) : (
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-md">
+            <span className="text-lg font-bold text-transparent bg-clip-text bg-linear-to-r from-violet-500 to-cyan-400">
+              S
+            </span>
+          </div>
+        )}
       </button>
 
       {open ? (
@@ -110,6 +113,7 @@ export function ChatSidebar({
   const location = useLocation();
   const { open } = useSidebar();
   const { logout } = useAuth();
+  //const [profileEmail, setProfileEmail] = useState("");
 
   const [isChatsOpen, setIsChatsOpen] = useState(() => {
     const raw = localStorage.getItem(CHATS_SECTION_OPEN_KEY);
@@ -122,6 +126,29 @@ export function ChatSidebar({
   useEffect(() => {
     localStorage.setItem(CHATS_SECTION_OPEN_KEY, String(isChatsOpen));
   }, [isChatsOpen]);
+
+  /*useEffect(() => {
+    let cancelled = false;
+
+    const loadProfileEmail = async () => {
+      try {
+        const email = await getCurrentUserEmail();
+        if (!cancelled) {
+          setProfileEmail(email || "");
+        }
+      } catch {
+        if (!cancelled) {
+          setProfileEmail("");
+        }
+      }
+    };
+
+    void loadProfileEmail();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);*/
 
   const filteredChats = chats.filter((chat) =>
     normalizeSearchValue(chat.title ?? "").includes(normalizeSearchValue(searchQuery))
@@ -177,9 +204,9 @@ export function ChatSidebar({
               variant="ghost"
               onClick={() => onPickFile?.()}
               disabled={uploading || !onPickFile}
-              className="mb-2 w-full justify-start gap-2 text-zinc-900 hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-800"
+              className="mb-2 w-full justify-start gap-2 text-zinc-700 hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-800"
             >
-              <Plus className="size-4" />
+              <CirclePlus className="size-4" />
               <span>Yeni Sohbet (PDF Yükle)</span>
             </Button>
           ) : (
@@ -187,10 +214,10 @@ export function ChatSidebar({
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={() => onPickFile?.()}
-                  tooltip="Yeni Sohbet (PDF Yukle)"
+                  tooltip="Yeni Sohbet (PDF Yükle)"
                   className="text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800 dark:hover:text-white"
                 >
-                  <Plus className="size-4" />
+                  <CirclePlus className="size-4" />
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -204,7 +231,7 @@ export function ChatSidebar({
                   tooltip="Sohbetler"
                   className="text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800 dark:hover:text-white"
                 >
-                  <MessageSquare className="size-4" />
+                  <MessageCircle className="size-4" />
                   <span>Sohbetler</span>
                   {isChatsOpen ? (
                     <ChevronDown className="ml-auto size-4" />
@@ -221,7 +248,7 @@ export function ChatSidebar({
                   tooltip="Sohbetler"
                   className="text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800 dark:hover:text-white"
                 >
-                  <MessageSquare className="size-4" />
+                  <MessageCircle className="size-4" />
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -328,11 +355,11 @@ export function ChatSidebar({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
-                  tooltip="Profil"
+                  tooltip={ "Profil"}
                   className="text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800 dark:hover:text-white"
                 >
                   <UserCircle2 className="size-4" />
-                  <span>Profil</span>
+                  <span className="truncate">{ "Profil"}</span>
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
 
