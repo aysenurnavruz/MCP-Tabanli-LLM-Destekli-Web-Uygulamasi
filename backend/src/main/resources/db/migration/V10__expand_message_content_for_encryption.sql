@@ -1,0 +1,1 @@
+ALTER TABLE messages MODIFY content MEDIUMTEXT NOT NULL;

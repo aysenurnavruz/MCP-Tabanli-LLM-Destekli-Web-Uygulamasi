@@ -19,7 +19,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import java.security.Principal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +34,7 @@ public class ChatService {
     private final MessageRepository messageRepository;
     private final DocumentRepository documentRepository;
     private final CurrentUserService currentUserService;
+    private final MessageCryptoService messageCryptoService;
 
     private final AiMcpClient aiMcpClient;
 
@@ -98,7 +104,7 @@ public class ChatService {
                         m.getId(),
                         m.getRole().name(),
                         m.getStatus().name(),
-                        m.getContent(),
+                        messageCryptoService.decrypt(m.getContent()),
                         m.getCreatedAt()
                 ));
     }
@@ -148,10 +154,8 @@ public class ChatService {
         }
 
         if (chat.getTitle() == null || chat.getTitle().isBlank()) {
-            String title = content.replaceAll("\\s+", " ");
-            if (title.length() > 120) title = title.substring(0, 120);
-            chat.setTitle(title.isBlank() ? "New chat" : title);
-            chatRepository.save(chat); // updated_at DB’de ON UPDATE ise de satır update olur
+            chat.setTitle(buildChatTitle(content));
+            chatRepository.save(chat);
         }
 
         Message userMsg = Message.builder()
@@ -159,7 +163,7 @@ public class ChatService {
                 .role(Message.Role.USER)
                 .status(Message.Status.CREATED) // sende farklıysa uyarlarsın
                 .clientMessageId(clientMessageId)
-                .content(content)
+                .content(messageCryptoService.encrypt(content))
                 .createdAt(Instant.now())
                 .build();
 
@@ -195,7 +199,7 @@ public class ChatService {
                 .chat(chat)
                 .role(Message.Role.ASSISTANT)
                 .status(Message.Status.CREATED)
-                .content(answerResult.answer())
+                .content(messageCryptoService.encrypt(answerResult.answer()))
                 .createdAt(Instant.now())
                 .build();
 
@@ -213,7 +217,7 @@ public class ChatService {
                 m.getId(),
                 m.getRole().name(),
                 m.getStatus().name(),
-                m.getContent(),
+                messageCryptoService.decrypt(m.getContent()),
                 m.getCreatedAt()
         );
     }
@@ -223,8 +227,10 @@ public class ChatService {
             return List.of();
         }
 
-        return citations.stream()
-                .map(citation -> new CitationResponse(
+        Map<String, CitationResponse> uniqueByPage = new LinkedHashMap<>();
+
+        for (AiMcpClient.Citation citation : citations) {
+            uniqueByPage.putIfAbsent(pageKey(citation.pageStart(), citation.pageEnd()), new CitationResponse(
                         citation.id(),
                         citation.chunkIndex(),
                         citation.pageStart(),
@@ -232,16 +238,72 @@ public class ChatService {
                         citation.startOffset(),
                         citation.endOffset(),
                         citation.score(),
-                        preview(citation.content())
-                ))
-                .toList();
+                        pagePreview(citation.pageStart(), citation.pageEnd())
+            ));
+        }
+
+        return List.copyOf(uniqueByPage.values());
     }
 
-    private String preview(String content) {
-        if (content == null || content.isBlank()) {
+    private String pageKey(Integer pageStart, Integer pageEnd) {
+        return (pageStart == null ? "?" : pageStart) + "-" + (pageEnd == null ? "?" : pageEnd);
+    }
+
+    private String pagePreview(Integer pageStart, Integer pageEnd) {
+        if (pageStart == null && pageEnd == null) {
             return "";
         }
-        String oneLine = content.replaceAll("\\s+", " ").trim();
-        return oneLine.length() <= 240 ? oneLine : oneLine.substring(0, 240);
+        if (pageStart == null) {
+            return "Sayfa " + pageEnd;
+        }
+        if (pageEnd == null || pageStart.equals(pageEnd)) {
+            return "Sayfa " + pageStart;
+        }
+        return "Sayfa " + pageStart + "-" + pageEnd;
+    }
+
+    private String buildChatTitle(String firstQuestion) {
+        if (firstQuestion == null || firstQuestion.isBlank()) {
+            return "Yeni sohbet";
+        }
+
+        Set<String> stopWords = Set.of(
+                "bu", "şu", "su", "bir", "bana", "lütfen", "lutfen", "acaba",
+                "mısın", "misin", "musun", "müsün", "miyim", "miyiz", "mi", "mı", "mu", "mü",
+                "ne", "nedir", "nelerdir", "hakkında", "hakkinda", "kısaca", "kisaca",
+                "açıklar", "aciklar", "açıkla", "acikla", "anlatır", "anlatir", "anlat",
+                "söyler", "soyler", "özetler", "ozetler", "eder", "edebilir"
+        );
+
+        List<String> titleWords = new ArrayList<>();
+        String normalized = firstQuestion
+                .replaceAll("[!?.,;:()\\[\\]{}\"']", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+
+        for (String word : normalized.split(" ")) {
+            String lower = word.toLowerCase(Locale.forLanguageTag("tr-TR"));
+            if (lower.length() < 2 || stopWords.contains(lower)) {
+                continue;
+            }
+
+            titleWords.add(word);
+            if (titleWords.size() == 6) {
+                break;
+            }
+        }
+
+        String title = titleWords.isEmpty() ? normalized : String.join(" ", titleWords);
+        title = title.replaceAll("\\s+", " ").trim();
+
+        if (title.length() > 60) {
+            title = title.substring(0, 60).replaceAll("\\s+\\S*$", "").trim();
+        }
+
+        if (title.isBlank()) {
+            return "Yeni sohbet";
+        }
+
+        return title.substring(0, 1).toUpperCase(Locale.forLanguageTag("tr-TR")) + title.substring(1);
     }
 }
