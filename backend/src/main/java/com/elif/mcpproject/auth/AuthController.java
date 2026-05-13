@@ -1,6 +1,7 @@
 package com.elif.mcpproject.auth;
 
 import com.elif.mcpproject.auth.dto.AuthResponse;
+import com.elif.mcpproject.auth.dto.ChangePasswordRequest;
 import com.elif.mcpproject.auth.dto.LoginRequest;
 import com.elif.mcpproject.auth.dto.LogoutRequest;
 import com.elif.mcpproject.auth.dto.RegisterRequest;
@@ -11,6 +12,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.security.Principal;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -37,5 +40,14 @@ public class AuthController {
     @PostMapping("/refresh")
     public AuthResponse refresh(@Valid @RequestBody LogoutRequest req) {
         return authService.refresh(req.refreshToken());
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<Void> changePassword(
+            @Valid @RequestBody ChangePasswordRequest req,
+            Principal principal
+    ) {
+        authService.changePassword(req, principal);
+        return ResponseEntity.noContent().build();
     }
 }

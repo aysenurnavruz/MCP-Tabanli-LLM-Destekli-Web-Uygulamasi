@@ -23,9 +23,13 @@ api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined;
-    const isAuthEndpoint = originalRequest?.url?.startsWith("/api/auth/");
+    const isTokenEndpoint = originalRequest?.url
+      ? ["/api/auth/login", "/api/auth/register", "/api/auth/logout", "/api/auth/refresh"].some((path) =>
+          originalRequest.url?.startsWith(path)
+        )
+      : false;
 
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isAuthEndpoint) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isTokenEndpoint) {
       const refreshToken = getRefreshToken();
 
       if (refreshToken) {

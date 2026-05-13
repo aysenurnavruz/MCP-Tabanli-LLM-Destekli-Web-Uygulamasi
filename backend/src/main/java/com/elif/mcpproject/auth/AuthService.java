@@ -1,6 +1,7 @@
 package com.elif.mcpproject.auth;
 
 import com.elif.mcpproject.auth.dto.AuthResponse;
+import com.elif.mcpproject.auth.dto.ChangePasswordRequest;
 import com.elif.mcpproject.auth.dto.LoginRequest;
 import com.elif.mcpproject.auth.dto.RegisterRequest;
 import com.elif.mcpproject.security.JwtService;
@@ -13,9 +14,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import java.security.Principal;
 import java.time.Instant;
 import java.util.UUID;
 
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
@@ -101,6 +104,27 @@ public class AuthService {
 
         AppUser user = token.getUser();
         return issueTokens(user, Instant.now());
+    }
+
+    public void changePassword(ChangePasswordRequest req, Principal principal) {
+        if (principal == null || principal.getName() == null) {
+            throw new ResponseStatusException(UNAUTHORIZED, "Unauthorized");
+        }
+
+        AppUser user = userRepository.findByEmail(principal.getName())
+                .orElseThrow(() -> new ResponseStatusException(UNAUTHORIZED, "User not found"));
+
+        if (!passwordEncoder.matches(req.currentPassword(), user.getPasswordHash())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Current password is incorrect");
+        }
+
+        if (passwordEncoder.matches(req.newPassword(), user.getPasswordHash())) {
+            throw new ResponseStatusException(BAD_REQUEST, "New password must be different from current password");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(req.newPassword()));
+        userRepository.save(user);
+        revokeAllUserTokens(user);
     }
 
     private void revokeAllUserTokens(AppUser user) {
