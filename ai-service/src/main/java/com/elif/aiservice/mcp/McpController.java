@@ -19,7 +19,7 @@ import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/mcp")
+@RequestMapping("/legacy-mcp")
 public class McpController {
     private final EmbeddingService embeddingService;
     private final RetrievalService retrievalService;

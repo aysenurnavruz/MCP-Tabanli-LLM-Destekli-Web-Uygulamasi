@@ -65,8 +65,7 @@ services:
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: root123
       APP_STORAGE_PATH: /app/storage
-      AI_SERVICE_MCP_URL: http://ai-service:8081/mcp
-      AI_SERVICE_TOKEN: dev-service-token
+      AI_SERVICE_MCP_BASE_URL: http://ai-service:8081
     ports:
       - "8080:8080"
     volumes:
